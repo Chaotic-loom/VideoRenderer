@@ -1,0 +1,74 @@
+plugins {
+    id 'multiloader-loader'
+    id 'net.neoforged.moddev'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+neoForge {
+    version = neoforge_version
+    // Automatically enable neoforge AccessTransformers if the file exists
+    def at = project(':common').file('src/main/resources/META-INF/accesstransformer.cfg')
+    if (at.exists()) {
+        accessTransformers.add(at.absolutePath)
+    }
+    parchment {
+        minecraftVersion = parchment_minecraft
+        mappingsVersion = parchment_version
+    }
+    runs {
+        configureEach {
+            systemProperty('neoforge.enabledGameTestNamespaces', mod_id)
+            ideName = "NeoForge ${it.name.capitalize()} (${project.path})" // Unify the run config names with fabric
+        }
+        client {
+            client()
+        }
+        data {
+            data()
+        }
+        server {
+            server()
+        }
+    }
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+dependencies {
+    // FFMPEG Java Interfaces
+    implementation "org.bytedeco:javacv:$javacvVersion"
+    implementation "org.bytedeco:javacpp:$javacvVersion"
+    implementation "org.bytedeco:ffmpeg:$ffmpegVersion"
+
+    // Linux x64
+    implementation "org.bytedeco:javacpp:$javacvVersion:linux-x86_64"
+    implementation "org.bytedeco:ffmpeg:$ffmpegVersion:linux-x86_64"
+
+    // Windows x64
+    implementation "org.bytedeco:javacpp:$javacvVersion:windows-x86_64"
+    implementation "org.bytedeco:ffmpeg:$ffmpegVersion:windows-x86_64"
+
+    // MacOS
+    implementation "org.bytedeco:javacpp:$javacvVersion:macosx-x86_64"
+    implementation "org.bytedeco:ffmpeg:$ffmpegVersion:macosx-x86_64"
+}
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+shadowJar {
+    configurations = [project.configurations.runtimeClasspath]
+
+    mergeServiceFiles()
+    relocate 'org.bytedeco', 'com.chaotic_loom.video_renderer.shadow.org.bytedeco'
+
+    archiveClassifier.set('dev-shadow')
+}
+
+tasks.named('jar', Jar) {
+    enabled = false
+}
+
+tasks.build.dependsOn shadowJar

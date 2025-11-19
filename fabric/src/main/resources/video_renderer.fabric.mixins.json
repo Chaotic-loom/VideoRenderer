@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.chaotic_loom.video_renderer.mixin",
+  "refmap": "${mod_id}.refmap.json",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [],
+  "client": [
+
+  ],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
