@@ -71,7 +71,7 @@ parchment_version=2023.09.03
 
 # Fabric
 fabric_version=0.92.6+1.20.1
-fabric_loader_version=0.15.11
+fabric_loader_version=0.17.3
 
 # Forge
 forge_version=47.4.0
