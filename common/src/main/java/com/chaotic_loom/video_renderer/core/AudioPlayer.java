@@ -1,5 +1,10 @@
 package com.chaotic_loom.video_renderer.core;
 
+import org.bytedeco.ffmpeg.global.avcodec;
+import org.bytedeco.ffmpeg.global.avutil;
+import org.bytedeco.javacv.FFmpegFrameGrabber;
+import org.bytedeco.javacv.FFmpegFrameRecorder;
+import org.bytedeco.javacv.Frame;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.openal.AL10;
 import org.lwjgl.stb.STBVorbis;
@@ -14,13 +19,18 @@ import java.util.UUID;
 
 /**
  * Simple AudioPlayer that:
- *  - Uses ffmpeg to extract audio from an .mp4 to a temporary .ogg
- *  - Decodes the .ogg via STBVorbis to PCM
- *  - Uploads PCM to an OpenAL buffer and plays it from a source
+ * - Uses bundled JavaCV (ffmpeg) to extract audio from an .mp4 to a temporary .ogg
+ * - Decodes the .ogg via STBVorbis to PCM
+ * - Uploads PCM to an OpenAL buffer and plays it from a source
  *
  * This loads the whole PCM into memory. For long files implement streaming.
  */
 public class AudioPlayer {
+    // Static block to silence FFmpeg logging
+    /*static {
+        avutil.av_log_set_level(avutil.AV_LOG_QUIET);
+    }*/
+
     private final int bufferId;
     private final int sourceId;
     private final File tempOgg;
@@ -84,8 +94,6 @@ public class AudioPlayer {
             prepared = true;
         } catch (IOException e) {
             throw new RuntimeException("IO error preparing audio: " + e.getMessage(), e);
-        } catch (InterruptedException e) {
-            throw new RuntimeException("ffmpeg process interrupted: " + e.getMessage(), e);
         } catch (Exception e) {
             throw new RuntimeException("Failed to prepare AudioPlayer: " + e.getMessage(), e);
         }
@@ -151,35 +159,58 @@ public class AudioPlayer {
 
     // ----------------- Helpers -----------------
 
-    private static void runFfmpegExtractAudio(File inputMp4, File outOgg) throws IOException, InterruptedException {
-        // Use ffmpeg to extract audio to OGG. Requires ffmpeg installed.
-        // Command: ffmpeg -y -i input.mp4 -vn -acodec libvorbis -ar 44100 -ac 2 out.ogg
-        ProcessBuilder pb = new ProcessBuilder(
-                "ffmpeg",
-                "-y",
-                "-i", inputMp4.getAbsolutePath(),
-                "-vn",
-                "-c:a", "libvorbis",
-                "-ar", "44100",
-                "-ac", "2",
-                outOgg.getAbsolutePath()
-        );
-        pb.redirectErrorStream(true); // combine stdout+stderr
-        Process p = pb.start();
+    /**
+     * Extracts audio from inputMp4 and saves it as OGG Vorbis using bundled JavaCV/FFmpeg.
+     */
+    private static void runFfmpegExtractAudio(File inputMp4, File outOgg) throws IOException {
+        // Setup Grabber, Reader
+        FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(inputMp4);
+        try {
+            grabber.start();
+        } catch (FFmpegFrameGrabber.Exception e) {
+            throw new IOException("Failed to start FFmpeg grabber: " + e.getMessage(), e);
+        }
 
-        // read and discard output (prevent blocking)
-        Thread ioDrainer = new Thread(() -> {
-            try (var in = p.getInputStream()) {
-                byte[] buf = new byte[4096];
-                while (in.read(buf) != -1) { /* discard */ }
-            } catch (IOException ignored) {}
-        }, "ffmpeg-io-drainer");
-        ioDrainer.setDaemon(true);
-        ioDrainer.start();
+        // Setup Recorder, Writer
+        // We force 2 channels, Stereo
+        FFmpegFrameRecorder recorder = new FFmpegFrameRecorder(outOgg, 2);
 
-        int exit = p.waitFor();
-        if (exit != 0 || !outOgg.exists()) {
-            throw new IOException("ffmpeg failed to extract audio (exit=" + exit + "). Is ffmpeg installed and accessible?");
+        recorder.setSampleRate(44100);
+        recorder.setFormat("ogg");
+        recorder.setAudioCodec(avcodec.AV_CODEC_ID_VORBIS); // Codec "libvorbis"
+
+        // Set bitrate (study this because I don't know what the heck I am doing with my life)
+        recorder.setAudioBitrate(128000);
+
+        try {
+            recorder.start();
+        } catch (FFmpegFrameRecorder.Exception e) {
+            grabber.stop();
+            grabber.release();
+            throw new IOException("Failed to start FFmpeg recorder: " + e.getMessage(), e);
+        }
+
+        // Processing Loop
+        try {
+            Frame frame;
+            // Iterate through frames
+            // grabSamples() fetches audio frames only (skips video processing)
+            while ((frame = grabber.grabSamples()) != null) {
+                recorder.record(frame);
+            }
+        } catch (Exception e) {
+            throw new IOException("Error during audio transcoding: " + e.getMessage(), e);
+        } finally {
+            // Cleanup
+            try {
+                recorder.stop();
+                recorder.release();
+            } catch (Exception ignored) {}
+
+            try {
+                grabber.stop();
+                grabber.release();
+            } catch (Exception ignored) {}
         }
     }
 

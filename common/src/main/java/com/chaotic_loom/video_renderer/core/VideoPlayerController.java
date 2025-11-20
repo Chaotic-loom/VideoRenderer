@@ -27,6 +27,7 @@ public class VideoPlayerController {
 
             EngineEvents.SOUND_ENGINE_LOADED.register(() -> {
                 soundLoaded = true;
+                VideoEvents.VIDEO_CONTROLLER_LOADED.invoker().invoke();
             });
 
             initialized = true;
