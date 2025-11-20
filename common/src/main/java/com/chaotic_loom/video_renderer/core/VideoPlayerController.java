@@ -35,15 +35,15 @@ public class VideoPlayerController {
         }
     }
 
-    public static void playVideo(String absolutePath) {
-        playVideoInternal(() -> new VideoRenderer(absolutePath));
+    public static VideoRenderer playVideo(String absolutePath) {
+        return playVideoInternal(() -> new VideoRenderer(absolutePath));
     }
 
-    public static void playVideo(ResourceLocation location) {
-        playVideoInternal(() -> new VideoRenderer(location));
+    public static VideoRenderer playVideo(ResourceLocation location) {
+        return playVideoInternal(() -> new VideoRenderer(location));
     }
 
-    private static void playVideoInternal(Supplier<VideoRenderer> supplier) {
+    private static VideoRenderer playVideoInternal(Supplier<VideoRenderer> supplier) {
         try {
             VideoRenderer newVideo = supplier.get();
             newVideo.setLoop(false);
@@ -51,9 +51,12 @@ public class VideoPlayerController {
             activeVideos.add(newVideo);
 
             Constants.LOG.info("Video loaded, waiting for render thread to initialize texture...");
+            return newVideo;
         } catch (Exception e) {
             Constants.LOG.error("Failed to play video", e);
         }
+
+        return null;
     }
 
     public static void stopAllVideos() {

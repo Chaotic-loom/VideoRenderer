@@ -119,7 +119,7 @@ public class VideoRenderer {
     /**
      * Must be called on the render thread before calling play().
      */
-    public void initializeTexture() {
+    protected void initializeTexture() {
         if (initialized.get() || grabber == null) return;
 
         try {
@@ -350,7 +350,7 @@ public class VideoRenderer {
     /**
      * Called on the render thread to upload the latest decoded frame (if any) to the GPU.
      */
-    public void update() {
+    protected void update() {
         if (!playing.get() || !initialized.get()) return;
 
         NativeImage imageToUpload = nextFrameImage.get();  // Just read, don't clear
@@ -412,7 +412,7 @@ public class VideoRenderer {
         return audioPlayer != null;
     }
 
-    public void close() {
+    protected void close() {
         stop();
 
         // Audio
