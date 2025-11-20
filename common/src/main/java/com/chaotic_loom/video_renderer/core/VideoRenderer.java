@@ -454,4 +454,9 @@ public class VideoRenderer {
             Constants.LOG.error("Error while closing VideoPlayer", e);
         }
     }
+
+    @Override
+    public String toString() {
+        return this.videoFilePath;
+    }
 }
