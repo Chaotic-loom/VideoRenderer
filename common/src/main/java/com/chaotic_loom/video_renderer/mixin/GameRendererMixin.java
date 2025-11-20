@@ -1,6 +1,6 @@
 package com.chaotic_loom.video_renderer.mixin;
 
-import com.chaotic_loom.video_renderer.core.RenderEvents;
+import com.chaotic_loom.video_renderer.events.core.RenderEvents;
 import com.llamalad7.mixinextras.sugar.Local;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;

@@ -1,6 +1,7 @@
 package com.chaotic_loom.video_renderer.core;
 
 import com.chaotic_loom.video_renderer.Constants;
+import com.chaotic_loom.video_renderer.events.core.VideoEvents;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -298,7 +299,7 @@ public class VideoRenderer {
             if (audioPlayer != null) {
                 audioPlayer.stop();
             }
-            //TODO: RenderEvents.VIDEO_FINISHED.invoker().invoke();
+            VideoEvents.FINISHED.invoker().invoke(this);
         }
     }
 

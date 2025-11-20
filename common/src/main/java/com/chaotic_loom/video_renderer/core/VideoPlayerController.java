@@ -1,22 +1,36 @@
 package com.chaotic_loom.video_renderer.core;
 
+import com.chaotic_loom.video_renderer.Constants;
+import com.chaotic_loom.video_renderer.events.core.EngineEvents;
+import com.chaotic_loom.video_renderer.events.core.VideoEvents;
+import com.chaotic_loom.video_renderer.events.core.RenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 
 public class VideoPlayerController {
-    private static VideoRenderer currentVideo = null;
+    private static final List<VideoRenderer> activeVideos = new CopyOnWriteArrayList<>();
+
     private static boolean initialized = false;
+    private static boolean soundLoaded = false;
+
     private static final int backgroundColor = 0xFF000000;
 
     public static void initialize() {
         if (!initialized) {
-            RenderEvents.RENDER.register(VideoPlayerController::onHudRender);
+            RenderEvents.RENDER.register(VideoPlayerController::render);
+            VideoEvents.FINISHED.register(VideoPlayerController::onVideoFinished);
+
+            EngineEvents.SOUND_ENGINE_LOADED.register(() -> {
+                soundLoaded = true;
+            });
 
             initialized = true;
-            System.out.println("Video Player Controller initialized!");
+            Constants.LOG.info("Video Player Controller initialized!");
         }
     }
 
@@ -29,46 +43,76 @@ public class VideoPlayerController {
     }
 
     private static void playVideoInternal(Supplier<VideoRenderer> supplier) {
-        stopCurrentVideo();
-
         try {
-            currentVideo = supplier.get();
-            currentVideo.setLoop(false);
+            VideoRenderer newVideo = supplier.get();
+            newVideo.setLoop(false);
 
-            System.out.println("Video loaded, waiting for render thread to initialize texture...");
+            activeVideos.add(newVideo);
+
+            Constants.LOG.info("Video loaded, waiting for render thread to initialize texture...");
         } catch (Exception e) {
-            System.err.println("Failed to play video: " + e.getMessage());
-            e.printStackTrace();
+            Constants.LOG.error("Failed to play video", e);
         }
     }
 
-    public static void stopCurrentVideo() {
-        if (currentVideo != null) {
-            currentVideo.close();
-            currentVideo = null;
+    public static void stopAllVideos() {
+        for (VideoRenderer video : activeVideos) {
+            video.close();
+        }
+        activeVideos.clear();
+    }
+
+    public static void stopVideo(VideoRenderer video) {
+        if (activeVideos.contains(video)) {
+            video.close();
+            activeVideos.remove(video);
         }
     }
 
-    public static boolean isVideoPlaying() {
-        return currentVideo != null && currentVideo.isPlaying();
+    public static boolean isAnyVideoPlaying() {
+        // Returns true if at least one video is initialized and playing
+        for (VideoRenderer video : activeVideos) {
+            if (video != null && video.isPlaying()) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    private static void onHudRender(GuiGraphics drawContext, float tickDelta) {
-        if (currentVideo != null) {
-            // Initialize texture on first render call (guaranteed to be on render thread)
-            if (!currentVideo.isInitialized()) {
-                currentVideo.initializeTexture();
+    public static List<VideoRenderer> getActiveVideos() {
+        return activeVideos;
+    }
+
+    private static void onVideoFinished(VideoRenderer videoRenderer) {
+        Constants.LOG.info("Video finished!");
+        stopVideo(videoRenderer);
+    }
+
+    private static void render(GuiGraphics drawContext, float tickDelta) {
+        if (!soundLoaded) return;
+        if (activeVideos.isEmpty()) return;
+
+        // Iterate through all active videos
+        for (int i = 0; i < activeVideos.size(); i++) {
+            VideoRenderer video = activeVideos.get(i);
+            if (video == null) continue;
+
+            // Initialize texture on first render call
+            if (!video.isInitialized()) {
+                video.initializeTexture();
+
                 // Start playing after texture is initialized
-                if (currentVideo.isInitialized()) {
-                    currentVideo.play();
-                    System.out.println("Video playback started!");
+                if (video.isInitialized()) {
+                    video.play();
+                    Constants.LOG.info("Video playback started for: {}", video);
                 }
             }
 
             // Update and render if playing
-            if (currentVideo.isPlaying()) {
-                currentVideo.update();
-                renderVideoFullscreen(drawContext, currentVideo);
+            if (video.isPlaying()) {
+                video.update();
+                // TODO: More rendering methods
+                renderVideoFullscreen(drawContext, video);
             }
         }
     }
